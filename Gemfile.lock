@@ -1,0 +1,17 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    algorithms (0.6.1)
+    distribution (0.7.3)
+    randomext (0.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  algorithms
+  distribution
+  randomext
+
+BUNDLED WITH
+   1.10.6
