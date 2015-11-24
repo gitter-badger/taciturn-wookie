@@ -72,9 +72,9 @@ class Client(object):
         self.response_time = 0
     
     def computation_time(self):
-        if self.request_index == 0:
+        if self.request_index == 1:
             return self.rng.uniform(0, self.first_law_parameter + 1)
-        else:
+        elif self.request_index == 2:
             return self.second_law_name(self.second_law_parameter)
             
     def proceed(self):
