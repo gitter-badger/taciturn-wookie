@@ -28,10 +28,12 @@ class TaciturnWorker(object):
             )
             self.clients.append(client)
             client.proceed()
-        server.proceed()
-        return map(
-            lambda x: [x.start_time, x.current_time, x.response_time], self.clients
-        )
+        clients_number_per_time_values = server.proceed()
+        return {
+            'clients_number_per_time_values':clients_number_per_time_values,
+            'response_time_values': map(
+                lambda x: [x.start_time, x.current_time, x.response_time], self.clients)
+        }
     
 class Server(object):
     def __init__(self):
@@ -49,14 +51,24 @@ class Server(object):
         client.current_time = max_time
         
     def proceed(self):
+        clients_number_per_time_values = [[0, 0]]
         while not self.clients.empty():
             rank, client = self.clients.get()
+            if client.request_index <= 1:
+                clients_number_per_time_values.append(
+                    [clients_number_per_time_values[-1][0] + 1, client.current_time]
+                )
             client.current_time += TaciturnWorker.TRIP_TIME
             self.synchronize_server(client)
             computation_time = client.computation_time()
             self.server_time += computation_time
             client.current_time += computation_time
+            if client.request_index > 1:
+                clients_number_per_time_values.append(
+                    [clients_number_per_time_values[-1][0] - 1, client.current_time]
+                )
             client.proceed()
+        return clients_number_per_time_values
 
 class Client(object):
     def __init__(self, *args, **kwargs):

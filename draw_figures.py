@@ -1,9 +1,12 @@
 from numpy.random import RandomState
+import numpy as np
+import matplotlib.pyplot as plt
 from taciturn_wookie import *
 
+
 prng = RandomState(131252476)
-poisson_parameters = [1,10,25,50]
-clients_numbers = [10, 100, 1000, 5000, 10000, 100000, 250000]
+poisson_parameters = [10]
+clients_numbers = [10, 100, 1000, 10000, 100000]
 
 exponential_results = []
 exponential_crude_values = []
@@ -20,19 +23,24 @@ for poisson_parameter in poisson_parameters:
             poisson_parameter = poisson_parameter, 
             clients_number = clients_number)
         values = w.proceed()
-        response_time_values = map(lambda x: x[2], values)
-        exponential_crude_values.append({
-            'second_law': 'exponential',
-            'clients_number': clients_number,
-            'poisson_parameter': poisson_parameter,
-            'values': values})
-        
+        response_time_values = map(lambda x: x[2], values['response_time_values'])
+                
         mean = reduce(lambda x, y: x + y, response_time_values)/clients_number
         exponential_results.append({
             'second_law': 'exponential',
             'clients_number': clients_number,
             'poisson_parameter': poisson_parameter,
-            'mean': mean
+            'mean': mean,
+            'response_time_values':response_time_values,
+            'clients_number_per_time_values':values['clients_number_per_time_values']
         })
         
-print exponential_results
+plot_from = filter(lambda x: x['clients_number'] == clients_numbers[-1], exponential_results)
+
+for result in plot_from:
+    clients_count = map(lambda x: x[0], result['clients_number_per_time_values'])
+    clients_time = map(lambda x: x[1], result['clients_number_per_time_values'])
+    plt.plot(clients_time, clients_count, label="$\lambda = %d$" % result['poisson_parameter'])
+            
+plt.legend(shadow=True, fancybox=True)
+plt.savefig('plot.png', dpi=96)
