@@ -12,86 +12,67 @@ class TaciturnWorker(object):
         self.second_law_parameter = kwargs['second_law_parameter']
         self.rng = kwargs['rng']
         self.poisson_parameter = kwargs['poisson_parameter']
-        self.clients = []
+        self.events = Queue.PriorityQueue()
+        self.global_time = 0
+        self.clients_number_per_time_values = [[0, 0]]
+        # a request <=> a client performs request 1 + 2 and leaves
+        self.requests = []
+        self.state = 0
         
-    def proceed(self):
-        server = Server()
-        time = 0
-        for i in range(0, self.clients_number):
-            time += self.rng.poisson(self.poisson_parameter)
-            client = Client(first_law_parameter = self.first_law_parameter,
-            second_law_parameter = self.second_law_parameter,
-            second_law_name = self.second_law_name,
-            rng = self.rng,
-            start_time = time,
-            server = server
-            )
-            self.clients.append(client)
-            client.proceed()
-        clients_number_per_time_values = server.proceed()
-        return {
-            'clients_number_per_time_values':clients_number_per_time_values,
-            'response_time_values': map(
-                lambda x: [x.start_time, x.current_time, x.response_time], self.clients)
-        }
     
-class Server(object):
-    def __init__(self):
-        super(Server, self).__init__()
-        self.server_time = 0
-        self.clients = Queue.PriorityQueue()
+    def request1_arrival(self, request):
+        self.state += 1
+        request['current_time'] += TaciturnWorker.TRIP_TIME
+        request['next'] = self.request1_response
+        self.events.put((request['current_time'], request))
     
-    def request(self, client):
-        client.current_time += TaciturnWorker.TRIP_TIME
-        self.clients.put((client.current_time, client))
-        
-    def synchronize_server(self, client):
-        max_time = max(client.current_time, self.server_time)
-        self.server_time = max_time
-        client.current_time = max_time
-        
-    def proceed(self):
-        clients_number_per_time_values = [[0, 0]]
-        while not self.clients.empty():
-            rank, client = self.clients.get()
-            if client.request_index <= 1:
-                clients_number_per_time_values.append(
-                    [clients_number_per_time_values[-1][0] + 1, client.current_time]
-                )
-            client.current_time += TaciturnWorker.TRIP_TIME
-            self.synchronize_server(client)
-            computation_time = client.computation_time()
-            self.server_time += computation_time
-            client.current_time += computation_time
-            if client.request_index > 1:
-                clients_number_per_time_values.append(
-                    [clients_number_per_time_values[-1][0] - 1, client.current_time]
-                )
-            client.proceed()
-        return clients_number_per_time_values
+    def request1_response(self, request):
+        self.synchronize_time(request)
+        computation_time = self.rng.uniform(0, self.first_law_parameter + 1)
+        request['current_time'] += computation_time
+        self.global_time += computation_time
+        request['current_time'] += TaciturnWorker.TRIP_TIME
+        request['next'] = self.request2_arrival
+        self.events.put((request['current_time'] , request))
 
-class Client(object):
-    def __init__(self, *args, **kwargs):
-        super(Client, self).__init__()
-        self.second_law_name = kwargs['second_law_name']
-        self.first_law_parameter = kwargs['first_law_parameter']
-        self.second_law_parameter = kwargs['second_law_parameter']
-        self.rng = kwargs['rng']
-        self.start_time = kwargs['start_time']
-        self.current_time = self.start_time
-        self.server = kwargs['server']
-        self.request_index = 0
-        self.response_time = 0
-    
-    def computation_time(self):
-        if self.request_index == 1:
-            return self.rng.uniform(0, self.first_law_parameter + 1)
-        elif self.request_index == 2:
-            return self.second_law_name(self.second_law_parameter)
-            
+
+    def request2_arrival(self, request):
+        request['current_time'] += TaciturnWorker.TRIP_TIME
+        request['next'] = self.request2_response
+        self.events.put((request['current_time'], request))
+        
+    def request2_response(self, request):
+        self.synchronize_time(request)
+        computation_time = self.second_law_name(self.second_law_parameter)
+        self.global_time += computation_time
+        request['current_time'] += computation_time + TaciturnWorker.TRIP_TIME
+        self.state -= 1
+
+        
+    def synchronize_time(self, request):
+        max_time = max(request['current_time'], self.global_time)
+        self.global_time = max_time
+        request['current_time'] = max_time
+
     def proceed(self):
-        if self.request_index <= 1:
-            self.request_index += 1
-            self.server.request(self)
-        else:
-            self.response_time = self.current_time - self.start_time
+        start_time = 0
+        for i in range(0, self.clients_number):
+            start_time += self.rng.poisson(self.poisson_parameter)
+            request = {
+                'next': self.request1_arrival,
+                'start_time': start_time,
+                'current_time': start_time
+            }
+            self.requests.append(request)
+            self.events.put((start_time, request))
+            
+        while not self.events.empty():
+            time, request = self.events.get()
+            self.clients_number_per_time_values.append([self.state, time])
+            request['next'](request)
+            
+        response_time_values = map(lambda x: x['current_time'] - x['start_time'], self.requests)
+        return {
+            'clients_number_per_time_values':self.clients_number_per_time_values,
+            'response_time_values': response_time_values
+        }

@@ -5,7 +5,7 @@ from taciturn_wookie import *
 
 
 prng = RandomState(131252476)
-poisson_parameters = [10]
+poisson_parameters = [25, 30]
 clients_numbers = [10, 100, 1000, 10000, 100000]
 
 exponential_results = []
@@ -23,7 +23,7 @@ for poisson_parameter in poisson_parameters:
             poisson_parameter = poisson_parameter, 
             clients_number = clients_number)
         values = w.proceed()
-        response_time_values = map(lambda x: x[2], values['response_time_values'])
+        response_time_values = values['response_time_values']
                 
         mean = reduce(lambda x, y: x + y, response_time_values)/clients_number
         exponential_results.append({
